@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="ar" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Layer 1: 1D Convolution - Fixed Version</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --neon-cyan: #00f2ff;
+            --neon-purple: #bc00ff;
+            --neon-green: #00ff88;
+            --neon-gold: #ffd700;
+            --neon-red: #ff3c3c;
+            --bg-dark: #0a0a0f;
+            --panel-bg: rgba(5, 10, 20, 0.95);
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 50%, #0a0a0f 100%);
+            color: #ffffff;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px 40px;
+            background: linear-gradient(180deg, rgba(0, 0, 0, 0.9) 0%, transparent 100%);
+            z-index: 100;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .layer-title {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .layer-number {
+            font-size: 48px;
+            font-weight: 900;
+            color: var(--neon-purple);
+            text-shadow: 0 0 20px var(--neon-purple);
+            font-family: Arial, sans-serif;
+        }
+
+        .layer-info h1 {
+            font-size: 28px;
+            color: var(--neon-gold);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .layer-info p {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 15px;
+        }
+
+        .stat-box {
+            background: var(--panel-bg);
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: 1px solid rgba(188, 0, 255, 0.3);
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: var(--neon-gold);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            color: var(--neon-purple);
+            font-weight: bold;
+        }
+
+        .left-panel {
+            position: absolute;
+            left: 20px;
+            top: 120px;
+            width: 300px;
+            background: var(--panel-bg);
+            border: 1px solid rgba(0, 242, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            z-index: 90;
+            max-height: calc(100vh - 140px);
+            overflow-y: auto;
+        }
+
+        .panel-title {
+            font-size: 16px;
+            color: var(--neon-cyan);
+            text-transform: uppercase;
+            margin-bottom: 15px;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(0, 242, 255, 0.3);
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px;
+            margin-bottom: 5px;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 5px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .info-value {
+            font-size: 12px;
+            color: var(--neon-cyan);
+            font-weight: bold;
+        }
+
+        .right-panel {
+            position: absolute;
+            right: 20px;
+            top: 120px;
+            width: 280px;
+            background: var(--panel-bg);
+            border: 1px solid rgba(188, 0, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            z-index: 90;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-label {
+            font-size: 11px;
+            color: var(--neon-gold);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-value {
+            color: var(--neon-purple);
+            font-weight: bold;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+
+        .toggle-btn {
+            padding: 10px 15px;
+            background: rgba(188, 0, 255, 0.1);
+            border: 2px solid var(--neon-purple);
+            border-radius: 8px;
+            color: var(--neon-purple);
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .toggle-btn:hover {
+            background: rgba(188, 0, 255, 0.2);
+        }
+
+        .toggle-btn.active {
+            background: var(--neon-purple);
+            color: #000;
+        }
+
+        .bottom-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--panel-bg);
+            border: 1px solid rgba(188, 0, 255, 0.3);
+            border-radius: 15px;
+            padding: 15px 25px;
+            z-index: 90;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .filter-selector-label {
+            font-size: 13px;
+            color: var(--neon-gold);
+            text-transform: uppercase;
+        }
+
+        .filter-value-display {
+            font-size: 20px;
+            color: var(--neon-purple);
+            font-weight: bold;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        #filterSlider {
+            width: 300px;
+        }
+
+        .performance {
+            position: absolute;
+            top: 120px;
+            right: 320px;
+            background: var(--panel-bg);
+            border: 1px solid rgba(188, 0, 255, 0.3);
+            border-radius: 10px;
+            padding: 12px;
+            z-index: 90;
+            font-size: 11px;
+        }
+
+        .perf-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
+        .perf-label {
+            color: var(--neon-gold);
+        }
+
+        .perf-value {
+            color: var(--neon-purple);
+            font-weight: bold;
+        }
+
+        .loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(188, 0, 255, 0.1);
+            border-top: 3px solid var(--neon-purple);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--neon-purple);
+            letter-spacing: 2px;
+        }
+
+        .loading-progress {
+            margin-top: 15px;
+            width: 250px;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-bar {
+            height: 100%;
+            background: var(--neon-purple);
+            width: 0%;
+            transition: width 0.2s ease;
+        }
+
+        .left-panel::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .left-panel::-webkit-scrollbar-thumb {
+            background: var(--neon-purple);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-screen" id="loading">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing Conv1D Layer</div>
+        <div class="loading-progress">
+            <div class="loading-bar" id="loadingBar"></div>
+        </div>
+    </div>
+
+    <div class="header">
+        <div class="layer-title">
+            <div class="layer-number">1</div>
+            <div class="layer-info">
+                <h1>1D Convolution</h1>
+                <p>Feature Extraction Layer</p>
+            </div>
+        </div>
+        <div class="header-stats">
+            <div class="stat-box">
+                <div class="stat-label">Input</div>
+                <div class="stat-value">24×15</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Output</div>
+                <div class="stat-value">24×64</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Filters</div>
+                <div class="stat-value">64</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Kernel</div>
+                <div class="stat-value">3×15</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Params</div>
+                <div class="stat-value">2,944</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div class="left-panel">
+        <div class="panel-title">📊 Configuration</div>
+        <div class="info-item">
+            <span class="info-label">Type</span>
+            <span class="info-value">Conv1D</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Filters</span>
+            <span class="info-value">64</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Kernel Size</span>
+            <span class="info-value">3</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Stride</span>
+            <span class="info-value">1</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Padding</span>
+            <span class="info-value">same</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Activation</span>
+            <span class="info-value">ReLU</span>
+        </div>
+        <div style="height: 10px;"></div>
+        <div class="info-item">
+            <span class="info-label">Input Shape</span>
+            <span class="info-value">(None, 24, 15)</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Output Shape</span>
+            <span class="info-value">(None, 24, 64)</span>
+        </div>
+        <div style="height: 10px;"></div>
+        <div class="info-item">
+            <span class="info-label">Weights</span>
+            <span class="info-value">2,880</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Biases</span>
+            <span class="info-value">64</span>
+        </div>
+        <div class="info-item">
+            <span class="info-label">Total Params</span>
+            <span class="info-value">2,944</span>
+        </div>
+    </div>
+
+    <div class="right-panel">
+        <div class="control-group">
+            <div class="control-label">
+                Animation Speed
+                <span class="control-value" id="animSpeedValue">1.0</span>
+            </div>
+            <input type="range" id="animSpeed" min="0.1" max="3" step="0.1" value="1.0">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">
+                Kernel Speed
+                <span class="control-value" id="kernelSpeedValue">1.0</span>
+            </div>
+            <input type="range" id="kernelSpeed" min="0.1" max="3" step="0.1" value="1.0">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label">
+                Camera Rotation
+                <span class="control-value" id="cameraSpeedValue">0.5</span>
+            </div>
+            <input type="range" id="cameraSpeed" min="0" max="2" step="0.1" value="0.5">
+        </div>
+
+        <div style="height: 15px; border-top: 1px solid rgba(255,255,255,0.1); margin: 10px 0;"></div>
+
+        <button class="toggle-btn active" id="kernelToggle">🔲 Kernel ON</button>
+        <button class="toggle-btn active" id="flowToggle">🌊 Flow ON</button>
+        <button class="toggle-btn active" id="activationToggle">⚡ ReLU ON</button>
+        <button class="toggle-btn" id="pauseToggle">⏸ Pause</button>
+        <button class="toggle-btn" id="resetView">🔄 Reset</button>
+    </div>
+
+    <div class="performance">
+        <div class="perf-line">
+            <span class="perf-label">FPS:</span>
+            <span class="perf-value" id="fps">60</span>
+        </div>
+        <div class="perf-line">
+            <span class="perf-label">Filter:</span>
+            <span class="perf-value" id="activeFilter">0</span>
+        </div>
+        <div class="perf-line">
+            <span class="perf-label">Kernel:</span>
+            <span class="perf-value" id="kernelPos">0</span>
+        </div>
+    </div>
+
+    <div class="bottom-panel">
+        <div class="filter-selector-label">Filter:</div>
+        <input type="range" id="filterSlider" min="0" max="63" step="1" value="0">
+        <div class="filter-value-display" id="filterValue">0</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        console.log("Script started");
+
+        const CONFIG = {
+            INPUT: { rows: 24, cols: 15, cellSize: 2, gap: 0.3 },
+            OUTPUT: { rows: 24, cols: 64, cellSize: 1.2, gap: 0.15 },
+            KERNEL: { size: 3, features: 15 },
+            SPACING: { inputToKernel: 35, kernelToOutput: 35 },
+            COLORS: {
+                input: 0x00f2ff,
+                kernel: 0xffd700,
+                output: 0xbc00ff,
+                flow: 0x00ff88,
+                activation: 0xff3c3c
+            }
+        };
+
+        let scene, camera, renderer, controls, clock;
+        let inputGroup, kernelGroup, outputGroup, flowGroup;
+        let inputCells = [], outputCells = [], flowParticles = [];
+        let kernelMesh;
+
+        let currentFilter = 0;
+        let kernelPosition = 0;
+        let animationSpeed = 1.0;
+        let kernelSpeed = 1.0;
+        let isPaused = false;
+        let showKernel = true;
+        let showFlow = true;
+        let showActivation = true;
+
+        function init() {
+            console.log("Initializing scene");
+
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0f);
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 35, 100);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            console.log("Renderer created");
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+
+            clock = new THREE.Clock();
+
+            setupLights();
+            createInputTensor();
+            createKernel();
+            createOutputTensor();
+            createFlowSystem();
+            setupEventListeners();
+
+            console.log("Initialization complete");
+        }
+
+        function setupLights() {
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+            const light1 = new THREE.PointLight(CONFIG.COLORS.input, 2, 100);
+            light1.position.set(-40, 30, 40);
+            scene.add(light1);
+
+            const light2 = new THREE.PointLight(CONFIG.COLORS.kernel, 3, 80);
+            light2.position.set(0, 40, 40);
+            scene.add(light2);
+
+            const light3 = new THREE.PointLight(CONFIG.COLORS.output, 2, 100);
+            light3.position.set(40, 30, 40);
+            scene.add(light3);
+        }
+
+        function createInputTensor() {
+            inputGroup = new THREE.Group();
+            const { rows, cols, cellSize, gap } = CONFIG.INPUT;
+            const totalWidth = (cols * cellSize) + ((cols - 1) * gap);
+            const totalHeight = (rows * cellSize) + ((rows - 1) * gap);
+            const startX = -totalWidth / 2;
+            const startY = totalHeight / 2;
+            const posX = -CONFIG.SPACING.inputToKernel;
+
+            for (let row = 0; row < rows; row++) {
+                inputCells[row] = [];
+                for (let col = 0; col < cols; col++) {
+                    const geometry = new THREE.BoxGeometry(cellSize, cellSize, cellSize * 0.4);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: CONFIG.COLORS.input,
+                        emissive: CONFIG.COLORS.input,
+                        emissiveIntensity: 0.3,
+                        transparent: true,
+                        opacity: 0.7
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    const x = posX + startX + col * (cellSize + gap);
+                    const y = startY - row * (cellSize + gap);
+                    mesh.position.set(x, y, 0);
+                    mesh.userData = { row, col, phase: (row + col) * 0.1 };
+                    inputGroup.add(mesh);
+                    inputCells[row][col] = mesh;
+                }
+            }
+            scene.add(inputGroup);
+            console.log("Input tensor created");
+        }
+
+        function createKernel() {
+            kernelGroup = new THREE.Group();
+            const { size, features } = CONFIG.KERNEL;
+            const { cellSize, gap } = CONFIG.INPUT;
+            const kernelWidth = (features * cellSize) + ((features - 1) * gap);
+            const kernelHeight = (size * cellSize) + ((size - 1) * gap);
+
+            const geometry = new THREE.BoxGeometry(kernelWidth + 2, kernelHeight + 2, 4);
+            const edges = new THREE.EdgesGeometry(geometry);
+            const material = new THREE.LineBasicMaterial({ color: CONFIG.COLORS.kernel, linewidth: 2 });
+            const wireframe = new THREE.LineSegments(edges, material);
+            kernelGroup.add(wireframe);
+
+            const planeMaterial = new THREE.MeshPhongMaterial({
+                color: CONFIG.COLORS.kernel,
+                transparent: true,
+                opacity: 0.2,
+                emissive: CONFIG.COLORS.kernel,
+                emissiveIntensity: 0.3
+            });
+            const plane = new THREE.Mesh(geometry, planeMaterial);
+            kernelGroup.add(plane);
+
+            const totalHeight = (CONFIG.INPUT.rows * CONFIG.INPUT.cellSize) + ((CONFIG.INPUT.rows - 1) * CONFIG.INPUT.gap);
+            kernelGroup.position.set(0, totalHeight / 2, 0);
+            kernelMesh = kernelGroup;
+            scene.add(kernelGroup);
+            console.log("Kernel created");
+        }
+
+        function createOutputTensor() {
+            outputGroup = new THREE.Group();
+            const { rows, cols, cellSize, gap } = CONFIG.OUTPUT;
+            const totalWidth = (cols * cellSize) + ((cols - 1) * gap);
+            const totalHeight = (rows * cellSize) + ((rows - 1) * gap);
+            const startX = -totalWidth / 2;
+            const startY = totalHeight / 2;
+            const posX = CONFIG.SPACING.kernelToOutput;
+
+            for (let row = 0; row < rows; row++) {
+                outputCells[row] = [];
+                for (let col = 0; col < cols; col++) {
+                    const geometry = new THREE.BoxGeometry(cellSize, cellSize, cellSize * 0.4);
+                    const material = new THREE.MeshPhongMaterial({
+                        color: CONFIG.COLORS.output,
+                        emissive: CONFIG.COLORS.output,
+                        emissiveIntensity: 0.3,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    const mesh = new THREE.Mesh(geometry, material);
+                    const x = posX + startX + col * (cellSize + gap);
+                    const y = startY - row * (cellSize + gap);
+                    mesh.position.set(x, y, 0);
+                    mesh.userData = { row, col, phase: (row + col) * 0.1 };
+                    outputGroup.add(mesh);
+                    outputCells[row][col] = mesh;
+                }
+            }
+            scene.add(outputGroup);
+            console.log("Output tensor created");
+        }
+
+        function createFlowSystem() {
+            flowGroup = new THREE.Group();
+            const geometry = new THREE.SphereGeometry(0.3, 6, 6);
+
+            for (let i = 0; i < 150; i++) {
+                const material = new THREE.MeshBasicMaterial({
+                    color: CONFIG.COLORS.flow,
+                    transparent: true,
+                    opacity: 0.7
+                });
+                const particle = new THREE.Mesh(geometry, material);
+                particle.userData = {
+                    velocity: new THREE.Vector3(Math.random() * 0.4 + 0.2, 0, 0),
+                    life: Math.random() * 3,
+                    maxLife: 3
+                };
+                resetParticle(particle);
+                flowGroup.add(particle);
+                flowParticles.push(particle);
+            }
+            scene.add(flowGroup);
+            console.log("Flow system created");
+        }
+
+        function resetParticle(particle) {
+            particle.position.set(
+                -CONFIG.SPACING.inputToKernel - 25,
+                (Math.random() - 0.5) * 40,
+                (Math.random() - 0.5) * 5
+            );
+            particle.userData.life = particle.userData.maxLife;
+            particle.material.color.setHex(CONFIG.COLORS.flow);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (!isPaused) {
+                const delta = clock.getDelta() * animationSpeed;
+                const elapsed = clock.getElapsedTime() * animationSpeed;
+
+                controls.update();
+                animateKernel(elapsed);
+                animateInputCells(elapsed);
+                animateOutputCells(elapsed);
+                if (showFlow) animateFlowParticles(delta);
+                updateStats();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function animateKernel(elapsed) {
+            if (!showKernel || !kernelMesh) return;
+            const { rows } = CONFIG.INPUT;
+            const { cellSize, gap } = CONFIG.INPUT;
+            const totalHeight = (rows * cellSize) + ((rows - 1) * gap);
+            const startY = totalHeight / 2;
+
+            kernelPosition = (elapsed * kernelSpeed * 2) % (rows - 2);
+            const y = startY - kernelPosition * (cellSize + gap);
+            kernelMesh.position.y = y;
+
+            const pulse = (Math.sin(elapsed * 3) + 1) / 2;
+            kernelMesh.children[1].material.emissiveIntensity = 0.3 + pulse * 0.3;
+
+            document.getElementById('kernelPos').textContent = Math.floor(kernelPosition);
+        }
+
+        function animateInputCells(elapsed) {
+            const kernelRow = Math.floor(kernelPosition);
+            inputCells.forEach((row, rowIdx) => {
+                row.forEach((cell) => {
+                    const wave = Math.sin(elapsed + cell.userData.phase) * 0.4;
+                    cell.position.z = wave;
+
+                    if (rowIdx >= kernelRow && rowIdx < kernelRow + 3) {
+                        cell.material.emissiveIntensity = 0.7;
+                        cell.material.opacity = 0.9;
+                        cell.scale.setScalar(1.15);
+                    } else {
+                        cell.material.emissiveIntensity = 0.3;
+                        cell.material.opacity = 0.7;
+                        cell.scale.setScalar(1.0);
+                    }
+                });
+            });
+        }
+
+        function animateOutputCells(elapsed) {
+            const kernelRow = Math.floor(kernelPosition);
+            outputCells.forEach((row, rowIdx) => {
+                row.forEach((cell, colIdx) => {
+                    const wave = Math.sin(elapsed * 1.5 + cell.userData.phase) * 0.4;
+                    cell.position.z = wave;
+
+                    if (rowIdx === kernelRow && colIdx === currentFilter) {
+                        cell.material.emissiveIntensity = 1.2;
+                        cell.material.opacity = 1.0;
+                        cell.scale.setScalar(1.4);
+
+                        if (showActivation) {
+                            const reluPulse = (Math.sin(elapsed * 5) + 1) / 2;
+                            cell.material.emissive.setHex(
+                                reluPulse > 0.5 ? CONFIG.COLORS.activation : CONFIG.COLORS.output
+                            );
+                        }
+                    } else if (colIdx === currentFilter) {
+                        cell.material.emissiveIntensity = 0.5;
+                        cell.material.opacity = 0.8;
+                        cell.scale.setScalar(1.1);
+                        cell.material.emissive.setHex(CONFIG.COLORS.output);
+                    } else {
+                        cell.material.emissiveIntensity = 0.3;
+                        cell.material.opacity = 0.6;
+                        cell.scale.setScalar(1.0);
+                        cell.material.emissive.setHex(CONFIG.COLORS.output);
+                    }
+                });
+            });
+        }
+
+        function animateFlowParticles(delta) {
+            flowParticles.forEach(particle => {
+                particle.position.add(particle.userData.velocity);
+                particle.userData.life -= delta;
+
+                const inputX = -CONFIG.SPACING.inputToKernel;
+                const outputX = CONFIG.SPACING.kernelToOutput;
+
+                if (particle.position.x > 0 && particle.position.x < outputX) {
+                    particle.material.color.setHex(CONFIG.COLORS.kernel);
+                } else if (particle.position.x >= outputX) {
+                    particle.material.color.setHex(CONFIG.COLORS.output);
+                }
+
+                const lifeRatio = particle.userData.life / particle.userData.maxLife;
+                particle.material.opacity = lifeRatio * 0.7;
+
+                if (particle.userData.life <= 0 || particle.position.x > outputX + 25) {
+                    resetParticle(particle);
+                }
+            });
+        }
+
+        function updateStats() {
+            if (Math.random() < 0.1) {
+                document.getElementById('fps').textContent = Math.round(1 / clock.getDelta());
+                document.getElementById('activeFilter').textContent = currentFilter;
+            }
+        }
+
+        function setupEventListeners() {
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            document.getElementById('animSpeed').addEventListener('input', (e) => {
+                animationSpeed = parseFloat(e.target.value);
+                document.getElementById('animSpeedValue').textContent = e.target.value;
+            });
+
+            document.getElementById('kernelSpeed').addEventListener('input', (e) => {
+                kernelSpeed = parseFloat(e.target.value);
+                document.getElementById('kernelSpeedValue').textContent = e.target.value;
+            });
+
+            document.getElementById('cameraSpeed').addEventListener('input', (e) => {
+                controls.autoRotateSpeed = parseFloat(e.target.value);
+                document.getElementById('cameraSpeedValue').textContent = e.target.value;
+            });
+
+            document.getElementById('filterSlider').addEventListener('input', (e) => {
+                currentFilter = parseInt(e.target.value);
+                document.getElementById('filterValue').textContent = currentFilter;
+            });
+
+            document.getElementById('kernelToggle').addEventListener('click', () => {
+                showKernel = !showKernel;
+                kernelMesh.visible = showKernel;
+                document.getElementById('kernelToggle').classList.toggle('active');
+            });
+
+            document.getElementById('flowToggle').addEventListener('click', () => {
+                showFlow = !showFlow;
+                flowGroup.visible = showFlow;
+                document.getElementById('flowToggle').classList.toggle('active');
+            });
+
+            document.getElementById('activationToggle').addEventListener('click', () => {
+                showActivation = !showActivation;
+                document.getElementById('activationToggle').classList.toggle('active');
+            });
+
+            document.getElementById('pauseToggle').addEventListener('click', () => {
+                isPaused = !isPaused;
+                const btn = document.getElementById('pauseToggle');
+                btn.classList.toggle('active');
+                btn.textContent = isPaused ? '▶️ Resume' : '⏸ Pause';
+            });
+
+            document.getElementById('resetView').addEventListener('click', () => {
+                camera.position.set(0, 35, 100);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+        }
+
+        function startLoadingSequence() {
+            let progress = 0;
+            const loadingBar = document.getElementById('loadingBar');
+            const loadingScreen = document.getElementById('loading');
+
+            const interval = setInterval(() => {
+                progress += 25;
+                if (progress > 100) progress = 100;
+                loadingBar.style.width = progress + '%';
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        loadingScreen.style.opacity = '0';
+                        setTimeout(() => loadingScreen.remove(), 1000);
+                    }, 300);
+                }
+            }, 100);
+        }
+
+        // تأكد من تحميل المكتبات أولاً
+        let libsLoaded = 0;
+        function checkLibsLoaded() {
+            libsLoaded++;
+            if (libsLoaded === 2) {
+                console.log("All libraries loaded, starting initialization");
+                init();
+                animate();
+                startLoadingSequence();
+            }
+        }
+
+        // استمع لتحميل المكتبات
+        const script1 = document.querySelector('script[src*="three.min.js"]');
+        const script2 = document.querySelector('script[src*="OrbitControls.js"]');
+
+        if (script1) script1.onload = checkLibsLoaded;
+        if (script2) script2.onload = checkLibsLoaded;
+
+        // Fallback إذا كانت المكتبات محملة بالفعل
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (typeof THREE !== 'undefined' && !scene) {
+                    console.log("Starting from window load");
+                    init();
+                    animate();
+                    startLoadingSequence();
+                }
+            }, 500);
+        });
+    </script>
+</body>
+</html>
